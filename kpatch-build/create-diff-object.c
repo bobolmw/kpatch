@@ -3238,6 +3238,12 @@ static bool need_dynrela(struct lookup_table *table, struct section *sec, const 
 		return false;
 
 	if (rela->sym->sec) {
+		if (rela->sym->type == STT_FUNC &&
+				rela->sym->status == CHANGED &&
+				rela->sym->sec != sec->base &&
+				sec->base->sym &&
+				sec->base->sym->type == STT_FUNC)
+			return true;
 		/*
 		 * Internal symbols usually don't need dynrelas, because they
 		 * live in the patch module and can be relocated normally.
