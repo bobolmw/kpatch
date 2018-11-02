@@ -1277,6 +1277,10 @@ static bool kpatch_is_normal_static_local(struct symbol *sym)
 	if (is_special_static(sym))
 		return false;
 
+	if (!strncmp(sym->name, "__param_", strlen("__param_")) &&
+			!strncmp(sym->sec->name, "__param", strlen("__param")))
+		return false;
+
 	return true;
 }
 
