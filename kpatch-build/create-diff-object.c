@@ -62,6 +62,8 @@
 
 #ifdef __powerpc64__
 #define ABSOLUTE_RELA_TYPE R_PPC64_ADDR64
+#elif __aarch64__
+#define ABSOLUTE_RELA_TYPE R_AARCH64_ABS64
 #else
 #define ABSOLUTE_RELA_TYPE R_X86_64_64
 #endif
@@ -1536,7 +1538,7 @@ static void kpatch_replace_sections_syms(struct kpatch_elf *kelf)
 				continue;
 			}
 
-#ifdef __powerpc64__
+#if defined(__powerpc64__) || defined(__aarch64__)
 			add_off = 0;
 #else
 			if (rela->type == R_X86_64_PC32 ||
@@ -2028,7 +2030,7 @@ static int printk_index_group_size(struct kpatch_elf *kelf, int offset)
 	return size;
 }
 
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(__aarch64__)
 static int parainstructions_group_size(struct kpatch_elf *kelf, int offset)
 {
 	static int size = 0;
@@ -2177,7 +2179,7 @@ static struct special_section special_sections[] = {
 		.name		= ".printk_index",
 		.group_size	= printk_index_group_size,
 	},
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(__aarch64__)
 	{
 		.name		= ".smp_locks",
 		.group_size	= smp_locks_group_size,
@@ -2990,7 +2992,9 @@ static int function_ptr_rela(const struct rela *rela)
 		rela_toc->addend == (int)rela_toc->sym->sym.st_value &&
 		(rela->type == R_X86_64_32S ||
 		rela->type == R_PPC64_TOC16_HA ||
-		rela->type == R_PPC64_TOC16_LO_DS));
+		rela->type == R_PPC64_TOC16_LO_DS ||
+		rela->type == R_AARCH64_ADR_PREL_PG_HI21 ||
+		rela->type == R_AARCH64_ADD_ABS_LO12_NC));
 }
 
 static bool need_dynrela(struct lookup_table *table, struct section *sec, const struct rela *rela)
@@ -3479,7 +3483,7 @@ static void kpatch_create_mcount_sections(struct kpatch_elf *kelf)
 			rela->type = R_X86_64_PC32;
 		}
 
-#else /* __powerpc64__ */
+#else /* __powerpc64__ || __aarch64__ */
 {
 		bool found = false;
 

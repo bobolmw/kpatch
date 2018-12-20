@@ -14,6 +14,10 @@ ifeq ($(ARCH),x86_64)
 SOURCES += insn/insn.c insn/inat.c
 INSN     = insn/insn.o insn/inat.o
 insn/%.o: CFLAGS := $(filter-out -Wconversion, $(CFLAGS))
+else ifeq ($(ARCH),aarch64)
+SOURCES += insn/insn.c insn/inat.c
+INSN     = insn/insn.o insn/inat.o
+insn/%.o: CFLAGS := $(filter-out -Wconversion, $(CFLAGS))
 else ifeq ($(ARCH),ppc64le)
 SOURCES += gcc-plugins/ppc64le-plugin.c
 PLUGIN   = gcc-plugins/ppc64le-plugin.so
