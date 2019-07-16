@@ -1227,6 +1227,8 @@ echo -n "Patched objects:"
 for i in $(echo "${objnames[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
 do
 	echo -n " $i"
+	echo -n " $(basename $i)"
+	echo -n "$(basename $i)" >> $TEMPDIR/patch/object
 done
 echo
 
@@ -1353,6 +1355,7 @@ UNDEFINED=$(comm -23 <(sort -u "${TEMPDIR}"/undefined_references) \
 [[ -z "$USERMODBUILDDIR" ]] && [[ -n "$UNDEFINED" ]] && die "Undefined symbols: $UNDEFINED"
 
 cp -f "$TEMPDIR/patch/$MODNAME.ko" "$BASE" || die
+cp -f "$TEMPDIR/patch/object" "$BASE" || die
 
 [[ "$DEBUG" -eq 0 && "$SKIPCLEANUP" -eq 0 ]] && rm -f "$LOGFILE"
 
