@@ -1909,6 +1909,21 @@ static void kpatch_include_force_elements(struct kpatch_elf *kelf)
 			sym->include = 0;
 }
 
+int kpatch_include_new_static_var(struct kpatch_elf *kelf)
+{
+	struct symbol *sym;
+
+	list_for_each_entry(sym, &kelf->symbols, list) {
+		if (sym->status == NEW &&
+				sym->bind == STB_LOCAL &&
+				(sym->type == STT_OBJECT ||
+				 (sym->type == STT_NOTYPE && sym->name[0] != '$')))
+			kpatch_include_symbol(sym);
+	}
+
+	return 0;
+}
+
 static int kpatch_include_new_globals(struct kpatch_elf *kelf)
 {
 	struct symbol *sym;
@@ -3839,6 +3854,7 @@ int main(int argc, char *argv[])
 	callbacks_exist = kpatch_include_callback_elements(kelf_patched);
 	kpatch_include_force_elements(kelf_patched);
 	new_globals_exist = kpatch_include_new_globals(kelf_patched);
+	kpatch_include_new_static_var(kelf_patched);
 	kpatch_include_debug_sections(kelf_patched);
 
 	kpatch_process_special_sections(kelf_patched, lookup);
