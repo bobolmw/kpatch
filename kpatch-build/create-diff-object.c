@@ -539,7 +539,7 @@ static void kpatch_compare_correlated_nonrela_section(struct section *sec)
 {
 	struct section *sec1 = sec, *sec2 = sec->twin;
 
-	if (sec1->sh.sh_type != SHT_NOBITS &&
+	if (sec1->sh.sh_type != SHT_NOBITS && sec1->sh.sh_type != SHT_GROUP &&
 	    memcmp(sec1->data->d_buf, sec2->data->d_buf, sec1->data->d_size))
 		sec->status = CHANGED;
 	else
@@ -555,7 +555,7 @@ static void kpatch_compare_correlated_section(struct section *sec)
 	    sec1->sh.sh_flags != sec2->sh.sh_flags ||
 	    sec1->sh.sh_entsize != sec2->sh.sh_entsize ||
 	    (sec1->sh.sh_addralign != sec2->sh.sh_addralign &&
-	     !is_text_section(sec1)))
+	     !is_text_section(sec1) && strcmp(sec1->name, ".rodata")))
 		DIFF_FATAL("%s section header details differ from %s", sec1->name, sec2->name);
 
 	/* Short circuit for mcount sections, we rebuild regardless */
@@ -1024,6 +1024,34 @@ static void kpatch_correlate_section(struct section *sec_orig,
 		kpatch_correlate_symbol(sec_orig->sym, sec_patched->sym);
 }
 
+static int kpatch_correlate_group_section(struct list_head *seclist_orig,
+		struct list_head *seclist_patched, struct section *sec1, struct section *sec2)
+{
+	unsigned int *data1, *end1, *data2;
+	struct section *isec1, *isec2;
+
+	if (sec1->data->d_size != sec2->data->d_size)
+		return 1;
+	data1 = sec1->data->d_buf;
+	data2 = sec2->data->d_buf;
+	end1 = sec1->data->d_buf + sec1->data->d_size;
+	data1++;
+	data2++;
+	while (data1 < end1) {
+		isec1 = find_section_by_index(seclist_orig, *data1);
+		if (!isec1)
+			ERROR("group section not found");
+		isec2 = find_section_by_index(seclist_patched, *data2);
+		if (!isec2)
+			ERROR("group section not found");
+		if (strcmp(isec1->name, isec2->name))
+			return 1;
+		data1++;
+		data2++;
+	}
+	return 0;
+}
+
 static void kpatch_correlate_sections(struct list_head *seclist_orig,
 		struct list_head *seclist_patched)
 {
@@ -1047,10 +1075,7 @@ static void kpatch_correlate_sections(struct list_head *seclist_orig,
 			 * Changed group sections are currently not supported.
 			 */
 			if (sec_orig->sh.sh_type == SHT_GROUP) {
-				if (sec_orig->data->d_size != sec_patched->data->d_size)
-					continue;
-				if (memcmp(sec_orig->data->d_buf, sec_patched->data->d_buf,
-				           sec_orig->data->d_size))
+				if (kpatch_correlate_group_section(seclist_orig, seclist_patched, sec_orig, sec_patched))
 					continue;
 			}
 
@@ -1722,17 +1747,6 @@ static void kpatch_verify_patchability(struct kpatch_elf *kelf)
 		if (sec->status == CHANGED && !sec->include) {
 			log_normal("changed section %s not selected for inclusion\n",
 				   sec->name);
-			errs++;
-		}
-
-		if (sec->status != SAME && sec->grouped) {
-			log_normal("changed section %s is part of a section group\n",
-				   sec->name);
-			errs++;
-		}
-
-		if (sec->sh.sh_type == SHT_GROUP && sec->status == NEW) {
-			log_normal("new/changed group sections are not supported\n");
 			errs++;
 		}
 

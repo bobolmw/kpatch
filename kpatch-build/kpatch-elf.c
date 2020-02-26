@@ -712,8 +712,14 @@ void kpatch_reindex_elements(struct kpatch_elf *kelf)
 	unsigned int index;
 
 	index = 1; /* elf write function handles NULL section 0 */
-	list_for_each_entry(sec, &kelf->sections, list)
+	list_for_each_entry(sec, &kelf->sections, list) {
 		sec->index = index++;
+		/*
+		 * since we exclude .group section, we clear SHF_GROUP
+		 * for every section in case of link error.
+		 */
+		sec->sh.sh_flags &= (~SHF_GROUP);
+	}
 
 	index = 0;
 	list_for_each_entry(sym, &kelf->symbols, list) {

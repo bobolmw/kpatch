@@ -304,6 +304,8 @@ static void symtab_read(struct lookup_table *table, char *path)
 			table->obj_syms[i].bind = STB_GLOBAL;
 		} else if (!strcmp(bind, "WEAK")) {
 			table->obj_syms[i].bind = STB_WEAK;
+		} else if (!strcmp(bind, "UNIQUE")) {
+			table->obj_syms[i].bind = STB_GNU_UNIQUE;
 		} else {
 			ERROR("unknown symbol bind %s", bind);
 		}
@@ -528,7 +530,8 @@ static bool lookup_global_symbol(struct lookup_table *table, char *name,
 
 	memset(result, 0, sizeof(*result));
 	for_each_obj_symbol(i, sym, table) {
-		if ((sym->bind == STB_GLOBAL || sym->bind == STB_WEAK) &&
++		if ((sym->bind == STB_GLOBAL || sym->bind == STB_WEAK
++			|| sym->bind == STB_GNU_UNIQUE) &&
 		    !strcmp(sym->name, name)) {
 
 			if (result->objname)

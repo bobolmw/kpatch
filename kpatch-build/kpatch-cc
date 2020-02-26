@@ -13,7 +13,9 @@ fi
 
 declare -a args=("$@")
 
-if [[ "$TOOLCHAINCMD" =~ ^(.*-)?gcc$ || "$TOOLCHAINCMD" =~ ^(.*-)?clang$ ]] ; then
+if [[ "$TOOLCHAINCMD" =~ ^(.*-)?gcc$ ||
+	"$TOOLCHAINCMD" =~ ^(.*-)?g\+\+$ ||
+	"$TOOLCHAINCMD" =~ ^(.*-)?clang$ ]] ; then
 	while [ "$#" -gt 0 ]; do
 		if [ "$1" = "-o" ]; then
 			obj="$2"
