@@ -576,6 +576,7 @@ static int __init patch_init(void)
 	}
 #endif
 
+#if !defined(DISABLE_AFTER_LOAD)
 	ret = klp_enable_patch(lpatch);
 	if (ret) {
 #ifndef HAVE_SIMPLE_ENABLE
@@ -584,6 +585,7 @@ static int __init patch_init(void)
 		patch_free_livepatch(lpatch);
 		return ret;
 	}
+#endif
 
 	return 0;
 out:

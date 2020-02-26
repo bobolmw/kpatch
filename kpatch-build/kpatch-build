@@ -1176,6 +1176,11 @@ export KCFLAGS="-I$DATADIR/patch $ARCH_KCFLAGS"
 if [[ "$USE_KLP" -eq 0 ]]; then
 	export KCPPFLAGS="-D__KPATCH_MODULE__"
 fi
+
+if [[ -n "$DISABLE_AFTER_LOAD" ]];then
+	export KCPPFLAGS="-DDISABLE_AFTER_LOAD $KCPPFLAGS"
+fi
+
 save_env
 
 echo "Building patch module: $MODNAME.ko"
