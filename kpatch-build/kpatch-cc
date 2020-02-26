@@ -24,7 +24,9 @@ if [[ "$TOOLCHAINCMD" =~ ^(.*-)?gcc$ || "$TOOLCHAINCMD" =~ ^(.*-)?clang$ ]] ; th
 
 			[[ "$obj" = */.tmp_*.o ]] && obj="${obj/.tmp_/}"
 			relobj=${obj//$KPATCH_GCC_SRCDIR\//}
-			case "$relobj" in
+			tmpobj=$(readlink -f $obj)
+			relobj2=${tmpobj//$KPATCH_GCC_SRCDIR\//}
+			case "$relobj2" in
 				*.mod.o|\
 				*built-in.o|\
 				*built-in.a|\
