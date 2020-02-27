@@ -38,7 +38,9 @@ enum loglevel loglevel = NORMAL;
  */
 static struct symbol *find_or_add_ksym_to_symbols(struct kpatch_elf *kelf,
 						  struct section *ksymsec,
-						  char *strings, int offset)
+						  char *strings, int offset,
+						  char *ref_name,
+						  long ref_offset)
 {
 	struct kpatch_symbol *ksyms, *ksym;
 	struct symbol *sym;
@@ -67,9 +69,14 @@ static struct symbol *find_or_add_ksym_to_symbols(struct kpatch_elf *kelf,
 
 	objname = strings + rela->addend;
 
-	snprintf(pos, 32, "%lu", ksym->sympos);
 	/* .klp.sym.objname.name,pos */
-	snprintf(buf, 256, KLP_SYM_PREFIX "%s.%s,%s", objname, name, pos);
+	if (!ref_name) {
+		snprintf(pos, 32, "%lu", ksym->sympos);
+		snprintf(buf, 256, KLP_SYM_PREFIX "%s.%s,%s", objname, name, pos);
+	} else {
+		snprintf(pos, 32, "%ld", ref_offset);
+		snprintf(buf, 256, KLP_SYM_PREFIX "%s-%s,%s", objname, ref_name, pos);
+	}
 
 	/* Look for an already allocated symbol */
 	list_for_each_entry(sym, &kelf->symbols, list) {
@@ -176,6 +183,7 @@ static void create_klp_relasecs_and_syms(struct kpatch_elf *kelf, struct section
 	struct rela *rela;
 	char *objname;
 	unsigned int nr, index, offset, dest_off;
+	char *ref_name;
 
 	krelas = krelasec->data->d_buf;
 	nr = (unsigned int)(krelasec->data->d_size / sizeof(*krelas));
@@ -200,6 +208,15 @@ static void create_klp_relasecs_and_syms(struct kpatch_elf *kelf, struct section
 
 		objname = strings + rela->addend;
 
+		/* Get the unique ref_name */
+		rela = find_rela_by_offset(krelasec->rela,
+				(unsigned int)(offset + offsetof(struct kpatch_relocation,
+						ref_name)));
+		if (!rela)
+			ref_name = NULL;
+		else
+			ref_name = strings + rela->addend;
+
 		/* Get the .kpatch.symbol entry for the rela src */
 		rela = find_rela_by_offset(krelasec->rela,
 			(unsigned int)(offset + offsetof(struct kpatch_relocation, ksym)));
@@ -208,7 +225,7 @@ static void create_klp_relasecs_and_syms(struct kpatch_elf *kelf, struct section
 
 		/* Create (or find) a klp symbol from the rela src entry */
 		sym = find_or_add_ksym_to_symbols(kelf, ksymsec, strings,
-							(unsigned int)rela->addend);
+				(unsigned int)rela->addend, ref_name, krelas[index].ref_offset);
 		if (!sym)
 			ERROR("error finding or adding ksym to symtab");
 

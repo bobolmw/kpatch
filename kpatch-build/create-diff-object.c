@@ -3032,6 +3032,14 @@ static void kpatch_create_patches_sections(struct kpatch_elf *kelf,
 		funcs[index].old_size = symbol.size;
 		funcs[index].new_size = sym->sym.st_size;
 		funcs[index].sympos = symbol.sympos;
+		if (lookup_is_duplicate_symbol(table, sym->name, objname, symbol.sympos)) {
+			if (!strcmp(objname, "vmlinux")) {
+				symbol.sympos = get_vmlinux_duplicate_symbol_pos(table, sym->name, symbol.addr);
+				log_debug("update %s sympos from %ld to %ld\n",
+						sym->name, funcs[index].sympos, symbol.sympos);
+				funcs[index].sympos = symbol.sympos;
+			}
+		}
 
 		/*
 		 * Add a relocation that will populate the
@@ -3050,7 +3058,8 @@ static void kpatch_create_patches_sections(struct kpatch_elf *kelf,
 		ALLOC_LINK(rela, &relasec->relas);
 		rela->sym = strsym;
 		rela->type = ABSOLUTE_RELA_TYPE;
-		rela->addend = offset_of_string(&kelf->strings, sym->name);
+		rela->addend = offset_of_string(&kelf->strings,
+					strndup(sym->name, KSYM_NAME_LEN-1));
 		rela->offset = (unsigned int)(index * sizeof(*funcs) +
 			       offsetof(struct kpatch_patch_func, name));
 
@@ -3274,6 +3283,7 @@ static void kpatch_create_intermediate_sections(struct kpatch_elf *kelf,
 	bool special;
 	bool vmlinux = !strcmp(objname, "vmlinux");
 	struct special_section *s;
+	long ref_offset;
 
 	/* count rela entries that need to be dynamic */
 	nr = 0;
@@ -3370,12 +3380,34 @@ static void kpatch_create_intermediate_sections(struct kpatch_elf *kelf,
 			          rela->sym->name, symbol.objname,
 				  symbol.sympos);
 
+			ref_offset = 0;
 			/* Fill in ksyms[index] */
 			if (vmlinux)
 				ksyms[index].src = symbol.addr;
-			else
+			else {
 				/* for modules, src is discovered at runtime */
 				ksyms[index].src = 0;
+			}
+
+			if (lookup_is_duplicate_symbol(table, rela->sym->name, objname,
+						symbol.sympos)) {
+				struct lookup_refsym refsym;
+
+				if (lookup_ref_symbol_offset(table, rela->sym,
+							&refsym, objname, &ref_offset))
+					ERROR("unresolvable ambiguity on symbol %s\n",
+							rela->sym->name);
+
+				/* add rela to fill in ref_name field */
+				ALLOC_LINK(rela2, &krela_sec->rela->relas);
+				rela2->sym = strsym;
+				rela2->type = ABSOLUTE_RELA_TYPE;
+				rela2->addend = offset_of_string(&kelf->strings,
+						refsym.name);
+				rela2->offset = (unsigned int)(index * sizeof(*krelas) +
+						offsetof(struct kpatch_relocation, ref_name));
+			}
+
 			ksyms[index].sympos = symbol.sympos;
 			ksyms[index].type = rela->sym->type;
 			ksyms[index].bind = rela->sym->bind;
@@ -3384,7 +3416,8 @@ static void kpatch_create_intermediate_sections(struct kpatch_elf *kelf,
 			ALLOC_LINK(rela2, &ksym_sec->rela->relas);
 			rela2->sym = strsym;
 			rela2->type = ABSOLUTE_RELA_TYPE;
-			rela2->addend = offset_of_string(&kelf->strings, rela->sym->name);
+			rela2->addend = offset_of_string(&kelf->strings,
+					strndup(rela->sym->name, KSYM_NAME_LEN-1));
 			rela2->offset = (unsigned int)(index * sizeof(*ksyms) + \
 					offsetof(struct kpatch_symbol, name));
 
@@ -3403,6 +3436,7 @@ static void kpatch_create_intermediate_sections(struct kpatch_elf *kelf,
 			krelas[index].addend = rela->addend;
 			krelas[index].type = rela->type;
 			krelas[index].external = !vmlinux && symbol.exported;
+			krelas[index].ref_offset = ref_offset;
 
 			/* add rela to fill in krelas[index].dest field */
 			ALLOC_LINK(rela2, &krela_sec->rela->relas);

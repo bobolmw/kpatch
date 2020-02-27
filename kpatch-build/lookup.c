@@ -45,6 +45,7 @@ struct object_symbol {
 	unsigned long size;
 	char *name;
 	int type, bind;
+	int sec_index;
 };
 
 struct export_symbol {
@@ -297,6 +298,7 @@ static void symtab_read(struct lookup_table *table, char *path)
 
 		table->obj_syms[i].addr = addr;
 		table->obj_syms[i].size = strtoul(size, NULL, 0);
+		table->obj_syms[i].sec_index = atoi(ndx);
 
 		if (!strcmp(bind, "LOCAL")) {
 			table->obj_syms[i].bind = STB_LOCAL;
@@ -457,6 +459,17 @@ static bool lookup_local_symbol(struct lookup_table *table,
 		if (sym->bind == STB_LOCAL && !strcmp(sym->name,
 					lookup_sym->name))
 			sympos++;
+		else {
+			/*
+			 * symbol name longer than KSYM_NAME_LEN will be truncated
+			 * by kernel, so we can not find it using its original
+			 * name. we need to add pos for symbols which have same
+			 * KSYM_NAME_LEN-1 long prefix.
+			 */
+			if (strlen(lookup_sym->name) >= KSYM_NAME_LEN-1 &&
+					!strncmp(sym->name, lookup_sym->name, KSYM_NAME_LEN-1))
+				sympos++;
+		}
 
 		if (lookup_sym->lookup_table_file_sym == sym) {
 			in_file = 1;
@@ -527,11 +540,22 @@ static bool lookup_global_symbol(struct lookup_table *table, char *name,
 {
 	struct object_symbol *sym;
 	int i;
+	unsigned long sympos = 0;
 
 	memset(result, 0, sizeof(*result));
 	for_each_obj_symbol(i, sym, table) {
-+		if ((sym->bind == STB_GLOBAL || sym->bind == STB_WEAK
-+			|| sym->bind == STB_GNU_UNIQUE) &&
+		/*
+		 * symbol name longer than KSYM_NAME_LEN will be truncated
+		 * by kernel, so we can not find it using its original
+		 * name. we need to add pos for symbols which have same
+		 * KSYM_NAME_LEN-1 long prefix.
+		 */
+		if (strlen(name) >= KSYM_NAME_LEN-1 &&
+				!strncmp(sym->name, name, KSYM_NAME_LEN-1))
+			sympos++;
+
+		if ((sym->bind == STB_GLOBAL || sym->bind == STB_WEAK
+			|| sym->bind == STB_GNU_UNIQUE) &&
 		    !strcmp(sym->name, name)) {
 
 			if (result->objname)
@@ -540,7 +564,7 @@ static bool lookup_global_symbol(struct lookup_table *table, char *name,
 			result->objname		= table->objname;
 			result->addr		= sym->addr;
 			result->size		= sym->size;
-			result->sympos		= 0; /* always 0 for global symbols */
+			result->sympos	=	sympos;
 			result->global		= true;
 			result->exported	= is_exported(table, name);
 		}
@@ -559,4 +583,133 @@ bool lookup_symbol(struct lookup_table *table, struct symbol *sym,
 		return true;
 
 	return lookup_exported_symbol(table, sym->name, result);
+}
+
+int lookup_is_duplicate_symbol(struct lookup_table *table, char *name,
+		char *objname, unsigned long pos)
+{
+	struct object_symbol *sym;
+	int i, count = 0;
+	char posstr[32], buf[256];
+
+	for_each_obj_symbol(i, sym, table)
+		if (!strcmp(sym->name, name)) {
+			count++;
+			if (count > 1)
+				return 1;
+		}
+
+	/*
+	 * symbol name longer than KSYM_NAME_LEN will be truncated
+	 * by kernel, so we can not find it using its original
+	 * name. Here, we consider these long name symbol as duplicated
+	 * symbols. since create_klp_module will create symbol name
+	 * format like .klp.sym.objname.symbol,pos, so we consider name
+	 * length longer than KSYM_NAME_LEN-1 bytes as duplicated symbol
+	 */
+	snprintf(posstr, 32, "%lu", pos);
+	snprintf(buf, 256, KLP_SYM_PREFIX "%s.%s,%s", objname, name, posstr);
+	if (strlen(buf) >= KSYM_NAME_LEN-1)
+		return 1;
+
+	return 0;
+}
+
+struct object_symbol *lookup_find_symbol(struct lookup_table *table,
+		struct symbol *lookup_sym)
+{
+	struct object_symbol *sym;
+	unsigned long pos = 0;
+	int i, match = 0, in_file = 0;
+
+	if (!lookup_sym->lookup_table_file_sym)
+		return NULL;
+
+	for_each_obj_symbol(i, sym, table) {
+		if (sym->bind == STB_LOCAL && !strcmp(sym->name, lookup_sym->name))
+			pos++;
+
+		if (lookup_sym->lookup_table_file_sym == sym) {
+			in_file = 1;
+			continue;
+		}
+
+		if (!in_file)
+			continue;
+
+		if (sym->type == STT_FILE)
+			break;
+
+		if (sym->bind == STB_LOCAL && !strcmp(sym->name, lookup_sym->name)) {
+			match = 1;
+			break;
+		}
+	}
+
+	if (!match) {
+		for_each_obj_symbol(i, sym, table) {
+			if ((sym->bind == STB_GLOBAL || sym->bind == STB_WEAK) &&
+					!strcmp(sym->name, lookup_sym->name)) {
+				return sym;
+			}
+		}
+		return NULL;
+	}
+
+	return sym;
+}
+
+int lookup_ref_symbol_offset(struct lookup_table *table,
+		struct symbol *lookup_sym,
+		struct lookup_refsym *refsym,
+		char *objname, long *offset)
+{
+	struct object_symbol *orig_sym, *sym;
+	int i;
+
+	orig_sym = lookup_find_symbol(table, lookup_sym);
+	if (!orig_sym)
+		ERROR("lookup_ref_symbol_offset");
+	memset(refsym, 0, sizeof(*refsym));
+
+	/*find a unique symbol in the same section first*/
+	for_each_obj_symbol(i, sym, table) {
+		if (!strcmp(sym->name, lookup_sym->name) || sym->type == STT_FILE ||
+				sym->sec_index != orig_sym->sec_index ||
+				strchr(sym->name, '.'))
+			continue;
+
+		if (!lookup_is_duplicate_symbol(table, sym->name, objname, 1)) {
+			refsym->name = sym->name;
+			refsym->addr = sym->addr;
+			*offset = (long)orig_sym->addr- (long)sym->addr;
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+/*
+ * In case sometimes the sympos of duplicate symbols are different in vmlinux and
+ * /proc/kallsyms, and causes lookup_local_symbol to save wrong sympos in result,
+ * this function returns correct sympos of the symbol, by comparing
+ * address value with the symbol in vmlinux symbol table.
+ */
+unsigned long get_vmlinux_duplicate_symbol_pos(struct lookup_table *table,
+                                               char *name, unsigned long addr)
+{
+	struct object_symbol *sym;
+	unsigned long pos = 1;
+	int i;
+
+	for_each_obj_symbol(i, sym, table) {
+		if (strcmp(sym->name, name))
+			continue;
+
+		if (sym->addr < addr)
+			pos++;
+	}
+
+	return pos;
 }

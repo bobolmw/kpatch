@@ -1162,6 +1162,18 @@ for i in $FILES; do
 			SYMTAB="${KOBJFILE_PATH}.symtab"
 			SYMVERS_FILE="$SRCDIR/Module.symvers"
 
+			unset KCFLAGS
+			remove_patches
+			cd "$SRCDIR" || die
+			if [ -z "$USERMODBUILDDIR" ];then
+				make "-j$CPUS" $TARGETS 2>&1 | logger || die
+			else
+				make -C "$USERMODBUILDDIR" M="$USERMODBUILDDIR" $USERMODFLAGS "-j$CPUS" $TARGETS 2>&1 | logger || die
+			fi
+			cp ${KOBJFILE} ${KOBJFILE_PATH}
+			apply_patches
+			cd "$TEMPDIR" || die
+
 			if [ "$OOT_MODULE" == "yes" ];then
 				BUILDDIR="/lib/modules/$ARCHVERSION/build/"
 				SYMVERS_FILE="$TEMPDIR/Module.symvers"

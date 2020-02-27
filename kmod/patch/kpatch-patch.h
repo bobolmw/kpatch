@@ -30,6 +30,8 @@ struct kpatch_patch_func {
 	unsigned long sympos;
 	char *name;
 	char *objname;
+	char *ref_name;
+	long ref_offset;
 };
 
 struct kpatch_patch_dynrela {
@@ -41,6 +43,8 @@ struct kpatch_patch_dynrela {
 	char *objname;
 	int external;
 	long addend;
+	char *ref_name;
+	long ref_offset;
 };
 
 struct kpatch_pre_patch_callback {

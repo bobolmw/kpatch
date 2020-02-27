@@ -39,6 +39,8 @@ struct kpatch_relocation {
 	long addend;
 	char *objname; /* object to which this rela applies to */
 	struct kpatch_symbol *ksym;
+	char *ref_name;
+	long ref_offset;
 };
 
 struct kpatch_arch {
