@@ -1079,6 +1079,9 @@ static void kpatch_correlate_sections(struct list_head *seclist_orig,
 					continue;
 			}
 
+			if (strstr(sec_orig->name, ".orc_unwind"))
+				continue;
+
 			kpatch_correlate_section(sec_orig, sec_patched);
 			break;
 		}
@@ -1123,6 +1126,9 @@ static void kpatch_correlate_symbols(struct list_head *symlist_orig,
 			if (sym_orig->sec &&
 			    sym_orig->sec->sh.sh_type == SHT_GROUP &&
 			    sym_orig->sec->twin != sym_patched->sec)
+				continue;
+
+			if (strstr(sym_orig->name, ".orc_unwind"))
 				continue;
 
 			kpatch_correlate_symbol(sym_orig, sym_patched);
