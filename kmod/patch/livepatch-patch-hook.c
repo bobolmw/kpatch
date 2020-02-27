@@ -432,6 +432,16 @@ extern struct kpatch_patch_func __kpatch_funcs[], __kpatch_funcs_end[];
 extern struct kpatch_patch_dynrela __kpatch_dynrelas[], __kpatch_dynrelas_end[];
 #endif
 
+static int patch_is_func_forced(unsigned long addr)
+{
+	unsigned long *a;
+
+	for (a = __kpatch_force_funcs; a < __kpatch_force_funcs_end; a++)
+		if (*a == addr)
+			return 1;
+	return 0;
+}
+
 static int __init patch_init(void)
 {
 	struct kpatch_patch_func *kfunc;
@@ -520,6 +530,13 @@ static int __init patch_init(void)
 			lfunc = &lfuncs[j];
 			lfunc->old_name = func->kfunc->name;
 			lfunc->new_func = (void *)func->kfunc->new_addr;
+#if defined(__KLP_SUPPORT_FORCE__)
+#ifdef __ALL_FORCE__
+			lfunc->force = 1;
+#else
+			lfunc->force = patch_is_func_forced(func->kfunc->new_addr);
+#endif
+#endif
 #ifdef HAVE_SYMPOS
 			lfunc->old_sympos = func->kfunc->sympos;
 #else

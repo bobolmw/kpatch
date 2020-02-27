@@ -383,28 +383,32 @@ find_special_section_data_aarch64() {
 	# shellcheck disable=SC2086
 	SPECIAL_VARS="$(readelf -wi "$VMLINUX" |
 		gawk --non-decimal-data $AWK_OPTIONS '
-		BEGIN { a = b = e = j =  0 }
+		BEGIN { a = b = e = j = c = f = 0 }
 
 		# Set state if name matches
 		a == 0 && /DW_AT_name.* alt_instr[[:space:]]*$/ {a = 1; next}
 		b == 0 && /DW_AT_name.* bug_entry[[:space:]]*$/ {b = 1; next}
 		e == 0 && /DW_AT_name.* exception_table_entry[[:space:]]*$/ {e = 1; next}
 		j == 0 && /DW_AT_name.* jump_entry[[:space:]]*$/ {j = 1; next}
+		c == 0 && /DW_AT_name.* klp_func[[:space:]]*$/ {c = 1; next}
 
 		# Reset state unless this abbrev describes the struct size
 		a == 1 && !/DW_AT_byte_size/ { a = 0; next }
 		b == 1 && !/DW_AT_byte_size/ { b = 0; next }
 		e == 1 && !/DW_AT_byte_size/ { e = 0; next }
 		j == 1 && !/DW_AT_byte_size/ { j = 0; next }
+		c == 1 && /DW_TAG_structure_type/ { c = 3; next }
+		c == 1 && /DW_AT_name.* force[[:space:]]*$/ {f = 2; next}
 
 		# Now that we know the size, stop parsing for it
 		a == 1 {printf("export ALT_STRUCT_SIZE=%d\n", $4); a = 2}
 		b == 1 {printf("export BUG_STRUCT_SIZE=%d\n", $4); b = 2}
 		e == 1 {printf("export EX_STRUCT_SIZE=%d\n", $4); e = 2}
 		j == 1 {printf("export JUMP_STRUCT_SIZE=%d\n", $4); j = 2}
+		f == 2 {printf("export KLP_SUPPORT_FORCE=y\n"); f = 3}
 
 		# Bail out once we have everything
-		a == 2 && b == 2 && e == 2 && (j == 2 || skip_j) {exit}')"
+		a == 2 && b == 2 && e == 2 && (j == 2 || skip_j) && c == 3 {exit}')"
 
 	[[ -n "$SPECIAL_VARS" ]] && eval "$SPECIAL_VARS"
 
@@ -437,7 +441,7 @@ find_special_section_data() {
 	# shellcheck disable=SC2086
 	SPECIAL_VARS="$(readelf -wi "$VMLINUX" |
 		gawk --non-decimal-data $AWK_OPTIONS '
-		BEGIN { a = b = p = e = o = j = s = i = 0 }
+		BEGIN { a = b = p = e = o = j = s = i = c = f = 0 }
 
 		# Set state if name matches
 		a == 0 && /DW_AT_name.* alt_instr[[:space:]]*$/ {a = 1; next}
@@ -448,6 +452,7 @@ find_special_section_data() {
 		j == 0 && /DW_AT_name.* jump_entry[[:space:]]*$/ {j = 1; next}
 		s == 0 && /DW_AT_name.* static_call_site[[:space:]]*$/ {s = 1; next}
 		i == 0 && /DW_AT_name.* pi_entry[[:space:]]*$/ {i = 1; next}
+		c == 0 && /DW_AT_name.* klp_func[[:space:]]*$/ {c = 1; next}
 
 		# Reset state unless this abbrev describes the struct size
 		a == 1 && !/DW_AT_byte_size/ { a = 0; next }
@@ -458,6 +463,8 @@ find_special_section_data() {
 		j == 1 && !/DW_AT_byte_size/ { j = 0; next }
 		s == 1 && !/DW_AT_byte_size/ { s = 0; next }
 		i == 1 && !/DW_AT_byte_size/ { i = 0; next }
+		c == 1 && /DW_TAG_structure_type/ { c = 3; next }
+		c == 1 && /DW_AT_name.* force[[:space:]]*$/ {f = 2; next}
 
 		# Now that we know the size, stop parsing for it
 		a == 1 {printf("export ALT_STRUCT_SIZE=%d\n", $4); a = 2}
@@ -468,9 +475,10 @@ find_special_section_data() {
 		j == 1 {printf("export JUMP_STRUCT_SIZE=%d\n", $4); j = 2}
 		s == 1 {printf("export STATIC_CALL_STRUCT_SIZE=%d\n", $4); s = 2}
 		i == 1 {printf("export PRINTK_INDEX_STRUCT_SIZE=%d\n", $4); i = 2}
+		f == 2 {printf("export KLP_SUPPORT_FORCE=y\n"); f = 3}
 
 		# Bail out once we have everything
-		a == 2 && b == 2 && (p == 2 || skip_p) && e == 2 && (o == 2 || skip_o) && (j == 2 || skip_j) && (s == 2 || skip_s) && (i == 2 || skip_i) {exit}')"
+		a == 2 && b == 2 && (p == 2 || skip_p) && e == 2 && (o == 2 || skip_o) && (j == 2 || skip_j) && (s == 2 || skip_s) && (i == 2 || skip_i) && c == 3 {exit}')"
 
 	[[ -n "$SPECIAL_VARS" ]] && eval "$SPECIAL_VARS"
 
@@ -1229,6 +1237,14 @@ fi
 
 if [[ -n "$DISABLE_AFTER_LOAD" ]];then
 	export KCPPFLAGS="-DDISABLE_AFTER_LOAD $KCPPFLAGS"
+fi
+
+if [[ -n "$NO_STACK_CHECK" ]];then
+	export KCPPFLAGS="-D__ALL_FORCE__ $KCPPFLAGS"
+fi
+
+if [[ -n "$KLP_SUPPORT_FORCE" ]];then
+	export KCPPFLAGS="-D__KLP_SUPPORT_FORCE__ $KCPPFLAGS"
 fi
 
 save_env

@@ -64,4 +64,5 @@ struct kpatch_post_unpatch_callback {
 	char *objname;
 };
 
+extern unsigned long __kpatch_force_funcs[], __kpatch_force_funcs_end[];
 #endif /* _KPATCH_PATCH_H_ */
