@@ -2714,6 +2714,23 @@ static void kpatch_include_debug_sections(struct kpatch_elf *kelf)
 	}
 }
 
+static void kpatch_ignore_debug_sections(struct kpatch_elf *kelf)
+{
+	struct section *sec;
+
+	/* include all .debug_* sections */
+	list_for_each_entry(sec, &kelf->sections, list) {
+		if (is_debug_section(sec)) {
+			sec->include = 0;
+			sec->status = SAME;
+			if (!is_rela_section(sec)) {
+				sec->secsym->include = 0;
+				sec->secsym->status = SAME;
+			}
+		}
+	}
+}
+
 static void kpatch_mark_ignored_sections(struct kpatch_elf *kelf)
 {
 	struct section *sec, *strsec, *ignoresec;
@@ -3908,6 +3925,7 @@ int main(int argc, char *argv[])
 	new_globals_exist = kpatch_include_new_globals(kelf_patched);
 	kpatch_include_new_static_var(kelf_patched);
 	kpatch_include_debug_sections(kelf_patched);
+	kpatch_ignore_debug_sections(kelf_patched);
 
 	kpatch_process_special_sections(kelf_patched, lookup);
 

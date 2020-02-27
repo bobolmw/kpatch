@@ -1295,6 +1295,7 @@ KPATCH_LDFLAGS="$KPATCH_LDFLAGS"
 save_env
 
 make "${MAKEVARS[@]}" 2>&1 | logger || die
+strip -g "$TEMPDIR/patch/$MODNAME.ko"
 
 if [[ "$USE_KLP" -eq 1 ]]; then
 	if [[ "$USE_KLP_ARCH" -eq 0 ]]; then
