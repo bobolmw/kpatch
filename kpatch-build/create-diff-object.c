@@ -79,6 +79,7 @@ enum subsection {
 enum loglevel loglevel = NORMAL;
 
 bool KLP_ARCH;
+char *KEEP_JUMP_LABEL = NULL;
 
 /*******************
  * Data structures
@@ -2374,6 +2375,8 @@ static bool should_keep_jump_label(struct lookup_table *lookup,
 		if (tracepoint || dynamic_debug)
 			return false;
 
+		if (KEEP_JUMP_LABEL)
+			return true;
 		/*
 		 * This will be upgraded to an error after all jump labels have
 		 * been reported.
@@ -2404,6 +2407,8 @@ static bool should_keep_jump_label(struct lookup_table *lookup,
 		if (tracepoint || dynamic_debug)
 			return false;
 
+		if (KEEP_JUMP_LABEL)
+			return true;
 		/*
 		 * This will be upgraded to an error after all jump labels have
 		 * been reported.
@@ -2972,8 +2977,7 @@ static void kpatch_process_special_sections(struct kpatch_elf *kelf,
 		 * labels and enable tracepoints in a patched function.
 		 */
 		list_for_each_entry(sec, &kelf->sections, list) {
-			if (strcmp(sec->name, "__jump_table") &&
-			    strcmp(sec->name, "__tracepoints") &&
+			if (strcmp(sec->name, "__tracepoints") &&
 			    strcmp(sec->name, "__tracepoints_ptrs") &&
 			    strcmp(sec->name, "__tracepoints_strings"))
 				continue;
@@ -3865,6 +3869,7 @@ int main(int argc, char *argv[])
 	char *parent_symtab, *mod_symvers, *patch_name, *output_obj;
 	char *no_profiling_calls = NULL;
 
+	KEEP_JUMP_LABEL = getenv("KEEP_JUMP_LABEL");
 	memset(&arguments, 0, sizeof(arguments));
 	argp_parse (&argp, argc, argv, 0, NULL, &arguments);
 	if (arguments.debug)
