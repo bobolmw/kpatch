@@ -3317,13 +3317,7 @@ static bool need_dynrela(struct lookup_table *table, struct section *sec, const 
 			return false;
 		}
 
-		/*
-		 * The symbol is exported by the to-be-patched module, or by
-		 * another module which the patched module depends on.  Use a
-		 * dynrela because of late module loading: the patch module may
-		 * be loaded before the to-be-patched (or other) module.
-		 */
-		return true;
+		return false;
 	}
 
 	if (symbol.global) {
