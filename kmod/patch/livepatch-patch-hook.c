@@ -442,6 +442,22 @@ static int patch_is_func_forced(unsigned long addr)
 	return 0;
 }
 
+static int add_kpatch_objects(void)
+{
+	struct kpatch_object *p_kpatch_object;
+	struct patch_object *object;
+
+	for (p_kpatch_object = __kpatch_objects;
+	     p_kpatch_object < __kpatch_objects_end;
+	     p_kpatch_object++) {
+		object = patch_find_object_by_name(p_kpatch_object->objname);
+		if (!object)
+			return -ENOMEM;
+	}
+
+	return 0;
+}
+
 static int __init patch_init(void)
 {
 	struct kpatch_patch_func *kfunc;
@@ -485,6 +501,9 @@ static int __init patch_init(void)
 	if (ret)
 		goto out;
 
+	ret = add_kpatch_objects();
+	if (ret)
+		goto out;
 	/* past this point, only possible return code is -ENOMEM */
 	ret = -ENOMEM;
 

@@ -47,4 +47,10 @@ SECTIONS
     __kpatch_force_funcs_end = . ;
     QUAD(0);
   }
+  .kpatch.objects : {
+    __kpatch_objects = . ;
+    *(.kpatch.objects)
+    __kpatch_objects_end = . ;
+    QUAD(0);
+  }
 }

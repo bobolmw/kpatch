@@ -2916,6 +2916,27 @@ static void kpatch_create_kpatch_arch_section(struct kpatch_elf *kelf, char *obj
 	karch_sec->sh.sh_size = karch_sec->data->d_size;
 }
 
+static void kpatch_create_kpatch_object_section(struct kpatch_elf *kelf, char *objname)
+{
+	struct symbol *strsym;
+	struct rela *rela;
+	struct section *kobj_sec;
+
+	kobj_sec = create_section_pair(kelf, ".kpatch.objects", sizeof(struct kpatch_object), 1);
+
+	/* lookup strings symbol */
+	strsym = find_symbol_by_name(&kelf->symbols, ".kpatch.strings");
+	if (!strsym)
+		ERROR("can't find .kpatch.strings symbol");
+
+	/* entries[index].objname */
+	ALLOC_LINK(rela, &kobj_sec->rela->relas);
+	rela->sym = strsym;
+	rela->type = ABSOLUTE_RELA_TYPE;
+	rela->addend = offset_of_string(&kelf->strings, objname);
+	rela->offset = (unsigned int)(offsetof(struct kpatch_object, objname));
+}
+
 static void kpatch_process_special_sections(struct kpatch_elf *kelf,
 					    struct lookup_table *lookup)
 {
@@ -3973,6 +3994,11 @@ int main(int argc, char *argv[])
 	kpatch_create_intermediate_sections(kelf_out, lookup, parent_name, patch_name);
 	kpatch_create_kpatch_arch_section(kelf_out, parent_name);
 	kpatch_create_callbacks_objname_rela(kelf_out, parent_name);
+
+	if (!num_changed && new_globals_exist) {
+		kpatch_create_kpatch_object_section(kelf_out, parent_name);
+	}
+
 	kpatch_build_strings_section_data(kelf_out);
 
 	kpatch_create_mcount_sections(kelf_out);
