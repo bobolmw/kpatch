@@ -12,6 +12,10 @@
 # define __kpatch_section(section) __section(#section)
 #endif
 
+#define KPATCH_IGNORE_STATIC(_static) \
+	char *__UNIQUE_ID(kpatch_ignore_static_) __section(.kpatch.ignore.statics) = _static;
+
+
 /*
  * KPATCH_IGNORE_SECTION macro
  *

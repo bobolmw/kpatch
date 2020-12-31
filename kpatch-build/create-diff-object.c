@@ -1345,6 +1345,40 @@ static struct rela *kpatch_find_static_twin_ref(struct section *rela_sec, struct
 	return NULL;
 }
 
+static int kpatch_mark_ignored_statics(struct kpatch_elf *kelf, struct symbol *sym)
+{
+	struct section *sec, *strsec;
+	struct rela *rela;
+	char *name;
+
+	sec = find_section_by_name(&kelf->sections, ".kpatch.ignore.statics");
+	if (!sec)
+		return 0;
+
+	list_for_each_entry(rela, &sec->rela->relas, list) {
+		strsec = rela->sym->sec;
+		strsec->status = CHANGED;
+		/*
+		 * Include the string section here.  This is because the
+		 * KPATCH_IGNORE_STATIC() macro is passed a literal string
+		 * by the patch author, resulting in a change to the string
+		 * section.  If we don't include it, then we will potentially
+		 * get a "changed section not included" error in
+		 * kpatch_verify_patchability() if no other function based change
+		 * also changes the string section.  We could try to exclude each
+		 * literal string added to the section by KPATCH_IGNORE_STATIC()
+		 * from the section data comparison, but this is a simpler way.
+		 */
+		strsec->include = 1;
+		strsec->secsym->include = 1;
+		name = strsec->data->d_buf + rela->addend;
+		if (!strncmp(name, sym->name, strlen(name)))
+			return 1;
+	}
+
+	return 0;
+}
+
 /*
  * gcc renames static local variables by appending a period and a number.  For
  * example, __foo could be renamed to __foo.31452.  Unfortunately this number
@@ -1425,6 +1459,11 @@ static void kpatch_correlate_static_local_variables(struct kpatch_elf *orig,
 			if (sym->twin)
 				continue;
 
+			if (kpatch_mark_ignored_statics(patched, sym)) {
+				log_normal("KPATCH_IGNORE_STATIC:ignore static variable %s\n", sym->name);
+				continue;
+			}
+
 			bundled = sym == sym->sec->sym;
 			if (bundled && sym->sec == sec->base) {
 				/*
@@ -1482,6 +1521,11 @@ static void kpatch_correlate_static_local_variables(struct kpatch_elf *orig,
 			if (!kpatch_is_normal_static_local(sym))
 				continue;
 
+			if (kpatch_mark_ignored_statics(patched, sym)) {
+				log_normal("KPATCH_IGNORE_STATIC:ignore static variable %s\n", sym->name);
+				continue;
+			}
+
 			if (!sec->twin && sec->base->sym) {
 				struct symbol *parent = NULL;
 
@@ -1525,7 +1569,6 @@ static void kpatch_correlate_static_local_variables(struct kpatch_elf *orig,
 			log_normal("WARNING: unable to correlate static local variable %s used by %s, assuming variable is new\n",
 				   sym->name,
 				   kpatch_section_function_name(sec));
-			return;
 		}
 	}
 }
