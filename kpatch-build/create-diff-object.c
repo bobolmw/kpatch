@@ -865,6 +865,8 @@ static void kpatch_compare_correlated_symbol(struct symbol *sym)
 		if ((sym2->sec->twin && sym2->sec->twin->ignore) ||
 		    kpatch_subsection_changed(sym1->sec, sym2->sec))
 			sym->status = CHANGED;
+		else if (sym1->name[0] == '$') /* reserved symbols in aarch64 */
+			log_debug("maping symbols: %s", sym1->name); /* do nothing just ignogre */
 		else
 			DIFF_FATAL("symbol changed sections: %s", sym1->name);
 	}
