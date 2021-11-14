@@ -3773,6 +3773,7 @@ int main(int argc, char *argv[])
 	struct section *sec, *symtab;
 	char *orig_obj, *patched_obj, *parent_name;
 	char *parent_symtab, *mod_symvers, *patch_name, *output_obj;
+	char *no_profiling_calls = NULL;
 
 	memset(&arguments, 0, sizeof(arguments));
 	argp_parse (&argp, argc, argv, 0, NULL, &arguments);
@@ -3824,7 +3825,12 @@ int main(int argc, char *argv[])
 	kpatch_compare_correlated_elements(kelf_patched);
 	kpatch_mark_ignored_functions_same(kelf_patched);
 	kpatch_mark_ignored_sections_same(kelf_patched);
-	kpatch_check_func_profiling_calls(kelf_patched);
+	no_profiling_calls = getenv("NO_PROFILING_CALLS");
+	if (!no_profiling_calls)
+		kpatch_check_func_profiling_calls(kelf_patched);
+	else
+		log_debug("NO_PROFILING_CALLS set\n");
+
 	kpatch_elf_teardown(kelf_orig);
 	kpatch_elf_free(kelf_orig);
 
