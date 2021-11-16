@@ -1016,6 +1016,7 @@ if [ "$CONFIG_CC_IS_CLANG" -eq 1 ]; then
 	MAKEVARS+=("HOSTCC=clang")
 else
 	MAKEVARS+=("CC=${KPATCH_CC_PREFIX}gcc")
+	MAKEVARS+=("CROSS_COMPILE=${KPATCH_CC_PREFIX}")
 fi
 
 if [ "$CONFIG_LD_IS_LLD" -eq 1 ]; then
